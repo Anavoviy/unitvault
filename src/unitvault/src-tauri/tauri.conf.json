@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "unitvault",
+  "productName": "UnitVault",
   "version": "0.1.0",
   "identifier": "com.anavoviy.unitvault",
   "build": {
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "unitvault",
-        "width": 800,
-        "height": 600
+        "title": "UnitVault",
+        "width": 1280,
+        "height": 720,
+        "minHeight": 720,
+        "minWidth": 960
       }
     ],
     "security": {

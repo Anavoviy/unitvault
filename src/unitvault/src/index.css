@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+    --text-hero: 48px;
+    --text-h1: 32px;
+    --text-h2: 24px;
+    --text-h3: 18px;
+    --text-body: 14px;
+    --text-body-small: 13px;
+    --text-caption: 12px;
+    --text-label: 11px;
+    /* === Фоны === */
+    --color-primary: #0a0a0a;   /* Основной фон приложения */
+    --color-secondary: #1a1a1a;   /* Карточки, панели */
+    --color-tertiary: #252525;   /* Hover состояния, инпуты */
+    --color-elevated: #2a2a2a;   /* Модалки, dropdown */
+
+    /* === Текст === */
+    --color-txtprimary: #ffffff;   /* Заголовки, ключевые цифры */
+    --color-txtsecondary: #a0a0a0;   /* Подписи, описания */
+    --color-txttertiary: #666666;   /* Disabled, placeholder */
+
+    /* === Границы === */
+    --color-brdrsubtle: #2a2a2a;   /* Тонкие разделители */
+    --color-brdrdefault: #3a3a3a;   /* Стандартные границы */
+    --color-brdrstrong: #4a4a4a;   /* Фокус, активные элементы */
+
+    /* === Акцент === */
+    --color-accent:           #3b82f6;   /* Основной синий (кнопки, фокус) */
+    --color-accent-hover:     #2563eb;   /* Hover */
+    --color-accent-subtle:    rgba(59, 130, 246, 0.1);  /* Фоновый акцент */
+
+    /* === Семантические === */
+    --color-success:          #10b981;   /* Хорошие метрики, позитив */
+    --color-success-subtle:   rgba(16, 185, 129, 0.1);
+    --color-warning:          #f59e0b;   /* Предупреждения */
+    --color-warning-subtle:   rgba(245, 158, 11, 0.1);
+    --color-error:            #ef4444;   /* Ошибки, критичные метрики */
+    --color-error-subtle:     rgba(239, 68, 68, 0.1);
+    --color-info:             #3b82f6;   /* Информационные сообщения */
+}
