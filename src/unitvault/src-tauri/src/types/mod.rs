@@ -2,32 +2,62 @@ use rust_decimal::prelude::*;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use std::fs::Metadata;
+use time::{Timestamp};
+use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct Error {
     pub name: String,
     pub code: u32,
     pub message: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
 pub enum MetricStatus {
-    Critical,
-    Warning,
-    Good,
-    Excellent,
-    Info,
+    Critical = 1,
+    Warning = 2,
+    Good = 3,
+    Excellent = 4,
+    #[default] Info = 0,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+impl MetricStatus {
+    pub fn from_ltv_cac(ltv_cac: Decimal) -> MetricStatus {
+        if ltv_cac < dec!(0) {
+            MetricStatus::Info
+        } else if ltv_cac < dec!(1) {
+            MetricStatus::Critical
+        } else if ltv_cac < dec!(1) {
+            MetricStatus::Warning
+        } else if ltv_cac < dec!(1) {
+            MetricStatus::Good
+        } else {
+            MetricStatus::Excellent
+        }
+    }
+
+    pub fn from_payback_period(payback_period: Decimal) -> MetricStatus {
+        if payback_period < dec!(6) {
+            MetricStatus::Excellent
+        } else if payback_period < dec!(12) {
+            MetricStatus::Good
+        } else if payback_period < dec!(18) {
+            MetricStatus::Warning
+        } else {
+            MetricStatus::Critical
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
 pub enum BusinessType {
-    SaaS,
-    Ecommerce,
-    Marketplace,
-    Custom,
+     #[default] SaaS = 0,
+    Ecommerce = 1,
+    Marketplace = 2,
+    Custom = 3,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
 pub struct ModelInputs {
     // Базовые
     pub cac: Decimal,
@@ -45,7 +75,7 @@ pub struct ModelInputs {
     pub take_rate: Option<Decimal>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
 pub struct CalculatedMetrics {
     pub ltv: Decimal,
     pub ltv_cac_ratio: Decimal,
@@ -57,7 +87,7 @@ pub struct CalculatedMetrics {
     pub payback_status: MetricStatus,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
 pub struct UnitModel {
     pub id: String,
     pub name: String,
@@ -65,4 +95,25 @@ pub struct UnitModel {
     pub created_at: i64,
     pub updated_at: i64,
     pub inputs: ModelInputs,
+}
+
+impl UnitModel {
+    pub fn new(name: String, business_type: BusinessType, inputs: ModelInputs) -> Result<UnitModel, Error> {
+        if name.is_empty() {
+            return Err(Error {
+                name: String::from("name"),
+                code: 67,
+                message: String::from("message")
+            });
+        }
+
+        Ok(UnitModel {
+            id: String::from(Uuid::now_v7()),
+            name,
+            business_type,
+            created_at: Timestamp::now().as_milliseconds(),
+            updated_at: 0,
+            inputs
+        })
+    }
 }
