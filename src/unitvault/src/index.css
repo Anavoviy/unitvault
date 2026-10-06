@@ -39,3 +39,10 @@
     --color-error-subtle:     rgba(239, 68, 68, 0.1);
     --color-info:             #3b82f6;   /* Информационные сообщения */
 }
+
+h1 {
+    @apply text-h1 font-bold text-center;
+}
+h3 {
+    @apply text-h3 font-medium;
+}
