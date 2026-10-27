@@ -1,4 +1,4 @@
-use crate::types::Error;
+use crate::error_handler::Error;
 use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, AesGcm, Key, KeyInit, Nonce};
 use argon2::Algorithm::Argon2id;
@@ -6,6 +6,8 @@ use argon2::{Argon2, Params, Version};
 use rand::Rng;
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
+use crate::crypto::obfuscation::obfuscate;
+use crate::error_handler::store_errors::StoreError;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EncryptedData {
@@ -62,6 +64,7 @@ impl EncryptedData {
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
         let nonce = Nonce::from_slice(&self.iv);
 
+        //TODO: Добавить обфускацию
         let mut ciphertext = cipher
             .encrypt(nonce, self.encrypted_data.as_slice())
             .unwrap();
@@ -83,19 +86,11 @@ impl EncryptedData {
     pub fn decrypt(&mut self, data: Vec<u8>, password: &[u8]) -> Result<u8, Error> {
         let len = data.len();
         if len < 66 || data[0..4] != *b"UVAU" {
-            return Err(Error {
-                name: String::from("CrashFile"),
-                code: 55,
-                message: String::from("Файл поврежден, либо вы выбрали не тот файл"),
-            });
+            return Err(Error::from(StoreError::FileCrashed));
         }
 
         if data[4] > self.version {
-            return Err(Error {
-                name: String::from("VersionInvalid"),
-                code: 56,
-                message: String::from("Данная версия не поддерживается"),
-            });
+            return Err(Error::from(StoreError::VersionInvalid));
         }
 
         let mut key = [0u8; 32];
@@ -115,11 +110,7 @@ impl EncryptedData {
 
         let hmac = hmac_sha256::HMAC::mac(&data[..(len - 32)], &key);
         if hmac != self.hmac {
-            return Err(Error {
-                name: String::from("CrashFile"),
-                code: 55,
-                message: String::from("Файл поврежден, либо вы выбрали не тот файл"),
-            });
+            return Err(Error::from(StoreError::FileCrashed));
         }
 
         self.encrypted_data = cipher

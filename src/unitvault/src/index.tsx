@@ -7,6 +7,7 @@ import { Router, Route } from "@solidjs/router";
 import Hello from "./pages/Hello.tsx";
 import Create from "./pages/Create.tsx";
 import Open from "./pages/Open.tsx";
+import Main from "./pages/Main.tsx";
 
 const wrapper = document.getElementById("app") as HTMLElement
 
@@ -20,6 +21,7 @@ render(
         <Route path={"/"} component={Hello} />
         <Route path={"/open"} component={Open} />
         <Route path={"/create"} component={Create} />
+        <Route path={"/main"} component={Main} />
     </Router>
     ), 
     wrapper

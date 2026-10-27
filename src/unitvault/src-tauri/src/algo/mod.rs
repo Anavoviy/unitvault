@@ -1,118 +1,185 @@
-pub mod errors;
-pub mod models;
-
-use std::sync::Mutex;
-use rust_decimal::prelude::*;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-use tauri::State;
-use crate::AppState;
-use self::errors::{
-    break_even_denominator_0, ltv_churnrate_lower_0, ltv_ecommerce_parts_lower_0,
-    ltvcac_cac_lower_0, payback_arpu_or_margin_lower_0,
-};
-use self::models::{BreakEvenData, EcomMetrics, PaybackData, SaaSMetrics, UnitEconomics};
-use crate::types::{CalculatedMetrics, Error, MetricStatus, UnitModel};
+use crate::error_handler::{Error, model_errors::ModelError};
+use crate::models::{BusinessType, CalculateMetrics, UnitModel};
 
-pub fn ltv(metrics: &SaaSMetrics) -> Result<Decimal, Error> {
-    if metrics.churn_rate <= dec!(0) {
-        return Err(ltv_churnrate_lower_0());
+impl UnitModel {
+    pub fn ltv(&self) -> Result<Decimal, Error> {
+        let mut ltv: Decimal = dec!(0);
+
+        if self.business_type == BusinessType::SaaS {
+            let arpu = match self.inputs.arpu {
+                Some(arpu) => arpu,
+                None => return Err(Error::from(ModelError::ArpuNotFound))
+            };
+            let churn_rate = match self.inputs.churn_rate {
+                Some(churn_rate) => churn_rate,
+                None => return Err(Error::from(ModelError::ChurnRateNotFound))
+            };
+            ltv = (arpu * self.inputs.margin)
+                / churn_rate;
+        } else if self.business_type == BusinessType::Ecommerce {
+            let aov = match self.inputs.arpu {
+                Some(arpu) => arpu,
+                None => return Err(Error::from(ModelError::AovNotFound))
+            };
+            let purchase_frequency = match self.inputs.purchase_frequency {
+                Some(purchase_frequency) => purchase_frequency,
+                None => return Err(Error::from(ModelError::PurchaseFrequencyNotFound))
+            };
+            let customer_lifespan = match self.inputs.churn_rate {
+                Some(churn_rate) => dec!(1) / churn_rate,
+                None => return Err(Error::from(ModelError::ChurnRateNotFound))
+            };
+            ltv = aov *
+                self.inputs.margin *
+                purchase_frequency *
+                (dec!(1) / customer_lifespan);
+        } else if self.business_type == BusinessType::Marketplace {
+            let aov = match self.inputs.arpu {
+                Some(arpu) => arpu,
+                None => return Err(Error::from(ModelError::AovNotFound))
+            };
+            let purchase_frequency = match self.inputs.purchase_frequency {
+                Some(purchase_frequency) => purchase_frequency,
+                None => return Err(Error::from(ModelError::PurchaseFrequencyNotFound))
+            };
+            let take_rate = match self.inputs.take_rate {
+                Some(take_rate) => take_rate,
+                None => return Err(Error::from(ModelError::TakeRateNotFound))
+            };
+            let customer_lifespan = match self.inputs.churn_rate {
+                Some(churn_rate) => dec!(1) / churn_rate,
+                None => return Err(Error::from(ModelError::ChurnRateNotFound))
+            };
+            ltv = aov *
+                self.inputs.take_rate.unwrap() *
+                purchase_frequency *
+                self.inputs.margin *
+                customer_lifespan;
+        } else {
+            //TODO: Сделать отработку для варианта Custom
+        }
+
+        Ok(ltv)
+    }
+    pub fn ltv_cac(&self) -> Result<Decimal, Error> {
+        let ltv = match self.ltv() {
+            Ok(ltv) => ltv,
+            Err(e) => return Err(e)
+        };
+
+        let ltv_cac: Decimal = ltv / self.inputs.cac;
+
+        Ok(ltv_cac)
     }
 
-    Ok((metrics.arpu * metrics.margin) / metrics.churn_rate)
-}
-pub fn ltv_e_com(metrics: &EcomMetrics) -> Result<Decimal, Error> {
-    let ltv: Decimal =
-        metrics.aov * metrics.purchase_frequency * metrics.margin * metrics.customer_lifespan;
+    pub fn payback_period(&self) -> Result<Decimal, Error> {
+        let mut payback: Decimal = dec!(0);
 
-    if ltv <= dec!(0) {
-        return Err(ltv_ecommerce_parts_lower_0());
+        if self.business_type == BusinessType::SaaS{
+            let arpu = match self.inputs.arpu {
+                Some(arpu) => arpu,
+                None => return Err(Error::from(ModelError::ArpuNotFound))
+            };
+            payback = self.inputs.cac / (arpu * self.inputs.margin);
+        } else if self.business_type == BusinessType::Ecommerce || self.business_type == BusinessType::Marketplace {
+            let aov = match self.inputs.arpu {
+                Some(arpu) => arpu,
+                None => return Err(Error::from(ModelError::AovNotFound))
+            };
+            let purchase_frequency = match self.inputs.purchase_frequency {
+                Some(purchase_frequency) => purchase_frequency,
+                None => return Err(Error::from(ModelError::PurchaseFrequencyNotFound))
+            };
+
+            // Здесь учитывается, будто purchase_frequency берется за год
+            //TODO: Проработать момент с purshace_frequency, чтобы он настраивался и выбирался период, за который он берется
+            payback = self.inputs.cac / ((aov * purchase_frequency / dec!(12)) * self.inputs.margin);
+        } else {
+            //TODO: Сделать отработку для варианта Custom
+        }
+
+        Ok(payback)
     }
 
-    Ok(ltv)
-}
+    pub fn break_even_p(&self) -> Result<Decimal, Error> {
+        let mut break_even: Decimal = dec!(0);
 
-pub fn ltv_cac(metrics: &UnitEconomics) -> Result<Decimal, Error> {
-    if metrics.cac <= dec!(0) {
-        return Err(ltvcac_cac_lower_0());
+        if self.business_type == BusinessType::SaaS{
+            let arpu = match self.inputs.arpu {
+                Some(arpu) => arpu,
+                None => return Err(Error::from(ModelError::ArpuNotFound))
+            };
+            let fixed_cost = match self.inputs.fixed_cost{
+                Some(fixed_cost) => fixed_cost,
+                None => return Err(Error::from(ModelError::FixedCostNotFound))
+            };
+
+            break_even = fixed_cost / (arpu * self.inputs.margin);
+        } else if self.business_type == BusinessType::Ecommerce {
+            //TODO: Сделать расчет относительно AOV
+             let arpu = match self.inputs.arpu {
+                Some(arpu) => arpu,
+                None => return Err(Error::from(ModelError::ArpuNotFound))
+            };
+            let fixed_cost = match self.inputs.fixed_cost{
+                Some(fixed_cost) => fixed_cost,
+                None => return Err(Error::from(ModelError::FixedCostNotFound))
+            };
+
+            break_even = fixed_cost / (arpu * self.inputs.margin);
+        } else if self.business_type == BusinessType::Marketplace {
+            let aov = match self.inputs.arpu {
+                Some(aov) => aov,
+                None => return Err(Error::from(ModelError::AovNotFound))
+            };
+            let fixed_cost = match self.inputs.fixed_cost{
+                Some(fixed_cost) => fixed_cost,
+                None => return Err(Error::from(ModelError::FixedCostNotFound))
+            };
+            let take_rate = match self.inputs.take_rate {
+                Some(take_rate) => take_rate,
+                None => return Err(Error::from(ModelError::TakeRateNotFound))
+            };
+
+            break_even = fixed_cost / ((aov * self.inputs.margin) - (aov * take_rate));
+        }
+
+        Ok(break_even)
     }
 
-    Ok(metrics.ltv / metrics.cac)
-}
+    pub fn calculate(&mut self) -> Result<&CalculateMetrics, Error> {
+        let ltv = match self.ltv() {
+            Ok(ltv) => ltv,
+            Err(err) => return Err(err)
+        };
 
-pub fn payback_period(metrics: &PaybackData) -> Result<Decimal, Error> {
-    if metrics.arpu <= dec!(0) || metrics.margin <= dec!(0) {
-        return Err(payback_arpu_or_margin_lower_0());
+        let ltv_cac = match self.ltv_cac() {
+            Ok(ltv_cac) => ltv_cac,
+            Err(err) => return Err(err)
+        };
+
+        let payback = match self.payback_period(){
+            Ok(payback) => payback,
+            Err(err) => return Err(err)
+        };
+
+        let break_even = match self.break_even_p(){
+            Ok(break_even) => break_even,
+            Err(err) => return Err(err)
+        };
+
+        let calc = CalculateMetrics {
+            ltv,
+            ltv_cac,
+            payback_period: payback,
+            break_even_point: break_even,
+            nrr: None,
+        };
+
+        self.calculated = calc;
+
+        Ok(&self.calculated)
     }
-
-    Ok(metrics.cac / (metrics.arpu * metrics.margin))
 }
-
-pub fn break_even(metrics: &BreakEvenData) -> Result<Decimal, Error> {
-    let left = metrics.arpu * metrics.margin;
-    let right = metrics.cac * metrics.churn_rate;
-    if left < dec!(0) || right <= dec!(0) || left <= right {
-        return Err(break_even_denominator_0());
-    }
-
-    Ok((metrics.fixed_costs / (left - right)).ceil())
-}
-
-// Statistics
-pub fn retention_curve(model: &UnitModel) -> Result<Vec<Decimal>, Error> {
-    if model.inputs.churn_rate < dec!(0) || model.inputs.churn_rate >= dec!(1) {
-        return Err(ltv_churnrate_lower_0());
-    }
-
-    let one_minus_churn = dec!(1) - model.inputs.churn_rate;
-    let mut statistics = Vec::new();
-
-    let mut current = dec!(1);
-
-    for i in 0..=model.inputs.time_horizon {
-        statistics.push(current);
-        current *= one_minus_churn;
-    }
-
-    Ok(statistics)
-}
-
-
-
-// Pub endpoints
-pub fn calculate_metrics(unit: &UnitModel) -> Result<CalculatedMetrics, Error> {
-    let ltv = ltv(&SaaSMetrics {
-        arpu: unit.inputs.cac,
-        margin: unit.inputs.margin,
-        churn_rate: unit.inputs.churn_rate
-    }).unwrap();
-
-    let ltv_cac = ltv_cac(&UnitEconomics {
-        ltv,
-        cac: unit.inputs.cac,
-    }).unwrap();
-    let payback_period = payback_period(&PaybackData {
-        cac: unit.inputs.cac,
-        arpu: unit.inputs.arpu,
-        margin: unit.inputs.margin
-    }).unwrap();
-
-    let calculated = CalculatedMetrics {
-        ltv,
-        ltv_cac_ratio: ltv_cac,
-        payback_period,
-        break_even_point: Some(break_even(&BreakEvenData {
-            fixed_costs: unit.inputs.fixed_costs.unwrap_or(dec!(0)),
-            arpu: unit.inputs.arpu,
-            margin: unit.inputs.margin,
-            cac: unit.inputs.cac,
-            churn_rate: unit.inputs.churn_rate
-        }).unwrap_or(dec!(0))),
-        net_revenue_retention: None,
-        ltv_cac_status: MetricStatus::from_ltv_cac(ltv_cac),
-        payback_status: MetricStatus::from_payback_period(payback_period),
-    };
-
-    Ok(calculated)
-}
-

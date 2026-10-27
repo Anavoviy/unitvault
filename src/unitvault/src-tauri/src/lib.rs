@@ -1,32 +1,33 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rus
-mod algo;
 mod crypto;
-mod local;
-mod tests;
-mod types;
+mod error_handler;
+mod commands;
+mod models;
+mod algo;
+mod local_store;
 
-use types::UnitModel;
 use tauri::Manager;
+use serde::Deserialize;
 use std::sync::Mutex;
+use tauri::EventTarget::App;
+use crate::models::UnitModel;
+use crate::commands::{get_open_filepath, load_file, get_current_model};
 
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct AppState {
-    pub model: UnitModel
+    pub current_model: UnitModel
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(Mutex::new(AppState::default()))
+        .setup(|app| {
+            app.manage(Mutex::new(AppState::default()));
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![get_open_filepath, load_file, get_current_model])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![local::enter_filepath])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
